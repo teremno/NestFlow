@@ -169,6 +169,10 @@ export function SavingsFlow({
   const isExecuting = executionStatus === "quoting" || executionStatus === "executing";
   const isDone = executionStatus === "done";
   const isFailed = executionStatus === "failed";
+  const isFailedAfterBridge =
+    isFailed &&
+    steps.some((step) => step.type === "bridge" && step.status === "done") &&
+    steps.some((step) => step.type === "deposit" && step.status === "failed");
 
   return (
     <section className="rounded-lg border border-dark-800/50 bg-dark-900/80 p-5 shadow-2xl shadow-black/25 backdrop-blur md:p-6">
@@ -401,6 +405,12 @@ export function SavingsFlow({
           <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
             <p className="font-semibold text-white">Execution failed</p>
             <p className="mt-2">{error ?? "Unknown LI.FI execution error."}</p>
+            {isFailedAfterBridge ? (
+              <p className="mt-3 text-amber-100">
+                Bridge already completed. Do not start the full flow again; check your Solana
+                wallet for USDC and retry only the Kamino deposit after the backend is available.
+              </p>
+            ) : null}
           </div>
         ) : null}
 
@@ -416,7 +426,7 @@ export function SavingsFlow({
             </button>
           ) : null}
 
-          {isFailed ? (
+          {isFailed && !isFailedAfterBridge ? (
             <button
               type="button"
               onClick={() => void handleRetry()}
