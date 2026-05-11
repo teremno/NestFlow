@@ -96,6 +96,18 @@ function decodeBase64Transaction(value: string): Uint8Array {
   return bytes;
 }
 
+async function readJsonResponse<T>(response: Response): Promise<T> {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (!contentType.includes("application/json")) {
+    throw new Error(
+      "Kamino deposit endpoint is not available yet. Wait for the latest Vercel deployment and refresh the page.",
+    );
+  }
+
+  return (await response.json()) as T;
+}
+
 function SavingsQuotePreview({
   goal,
   fromAddress,
@@ -140,9 +152,10 @@ function SavingsQuotePreview({
       }),
     });
 
-    const payload = (await response.json()) as
+    const payload = await readJsonResponse<
       | { transaction: string }
-      | { error?: { message?: string } };
+      | { error?: { message?: string } }
+    >(response);
 
     if (!response.ok || !("transaction" in payload)) {
       throw new Error(
