@@ -58,7 +58,7 @@ The entire cross-chain execution layer is powered by LI.FI. Without LI.FI, users
 
 ## 👥 Team
 
-Олександр / teremno — Builder  
+Oleksandr / teremno — Builder  
 GitHub: [@teremno](https://github.com/teremno)
 
 ## 📄 License
