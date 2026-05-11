@@ -101,7 +101,7 @@ async function readJsonResponse<T>(response: Response): Promise<T> {
 
   if (!contentType.includes("application/json")) {
     throw new Error(
-      "Kamino deposit endpoint is not available yet. Wait for the latest Vercel deployment and refresh the page.",
+      "Kamino deposit endpoint is not available yet. If Bridge and Receive USDC are done, your funds should now be USDC in your Solana wallet. Base gas and bridge fees are network costs, not a NestFlow margin. Wait for the latest Vercel deployment, refresh the page, and retry only the Kamino deposit.",
     );
   }
 
