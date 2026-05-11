@@ -2,9 +2,9 @@
 
 import { ExternalLink } from "lucide-react";
 
-type TransactionStatus = "completed" | "pending" | "failed";
+export type TransactionStatus = "completed" | "pending" | "failed";
 
-interface TransactionHistoryItem {
+export interface TransactionHistoryItem {
   id: string;
   date: string;
   from: string;
@@ -12,6 +12,7 @@ interface TransactionHistoryItem {
   amount: string;
   status: TransactionStatus;
   txHash?: string;
+  txLink?: string;
 }
 
 const TRANSACTIONS: TransactionHistoryItem[] = [
@@ -61,7 +62,11 @@ function getExplorerUrl(txHash: string): string {
   return `https://solscan.io/tx/${txHash}`;
 }
 
-export function TransactionHistory() {
+export interface TransactionHistoryProps {
+  transactions?: TransactionHistoryItem[];
+}
+
+export function TransactionHistory({ transactions = TRANSACTIONS }: TransactionHistoryProps) {
   return (
     <section className="rounded-lg border border-dark-800/50 bg-dark-900/80 p-5 shadow-2xl shadow-black/20 backdrop-blur md:p-6">
       <div className="mb-5 flex items-center justify-between gap-4">
@@ -83,60 +88,65 @@ export function TransactionHistory() {
         </div>
 
         <div className="divide-y divide-dark-800/70">
-          {TRANSACTIONS.map((transaction) => (
-            <div
-              key={transaction.id}
-              className="grid gap-3 bg-dark-900/60 px-4 py-4 text-sm transition hover:bg-dark-800/70 md:grid-cols-[1fr_1.4fr_0.8fr_0.8fr_0.5fr] md:items-center md:gap-4"
-            >
-              <div>
-                <p className="text-xs uppercase tracking-[0.14em] text-slate-500 md:hidden">
-                  Date
-                </p>
-                <p className="text-slate-300">{transaction.date}</p>
-              </div>
+          {transactions.map((transaction) => {
+            const explorerUrl =
+              transaction.txLink ?? (transaction.txHash ? getExplorerUrl(transaction.txHash) : undefined);
 
-              <div>
-                <p className="text-xs uppercase tracking-[0.14em] text-slate-500 md:hidden">
-                  Route
-                </p>
-                <p className="font-medium text-white">
-                  {transaction.from} <span className="text-slate-500">-&gt;</span>{" "}
-                  {transaction.to}
-                </p>
-              </div>
+            return (
+              <div
+                key={transaction.id}
+                className="grid gap-3 bg-dark-900/60 px-4 py-4 text-sm transition hover:bg-dark-800/70 md:grid-cols-[1fr_1.4fr_0.8fr_0.8fr_0.5fr] md:items-center md:gap-4"
+              >
+                <div>
+                  <p className="text-xs uppercase tracking-[0.14em] text-slate-500 md:hidden">
+                    Date
+                  </p>
+                  <p className="text-slate-300">{transaction.date}</p>
+                </div>
 
-              <div>
-                <p className="text-xs uppercase tracking-[0.14em] text-slate-500 md:hidden">
-                  Amount
-                </p>
-                <p className="font-semibold text-white">{transaction.amount}</p>
-              </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.14em] text-slate-500 md:hidden">
+                    Route
+                  </p>
+                  <p className="font-medium text-white">
+                    {transaction.from} <span className="text-slate-500">-&gt;</span>{" "}
+                    {transaction.to}
+                  </p>
+                </div>
 
-              <div>
-                <span
-                  className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${STATUS_STYLES[transaction.status]}`}
-                >
-                  {transaction.status}
-                </span>
-              </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.14em] text-slate-500 md:hidden">
+                    Amount
+                  </p>
+                  <p className="font-semibold text-white">{transaction.amount}</p>
+                </div>
 
-              <div>
-                {transaction.txHash ? (
-                  <a
-                    href={getExplorerUrl(transaction.txHash)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-primary-300 transition hover:text-primary-200"
+                <div>
+                  <span
+                    className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${STATUS_STYLES[transaction.status]}`}
                   >
-                    View
-                    <ExternalLink className="size-3.5" aria-hidden="true" />
-                  </a>
-                ) : (
-                  <span className="text-slate-600">--</span>
-                )}
+                    {transaction.status}
+                  </span>
+                </div>
+
+                <div>
+                  {explorerUrl ? (
+                    <a
+                      href={explorerUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-primary-300 transition hover:text-primary-200"
+                    >
+                      View
+                      <ExternalLink className="size-3.5" aria-hidden="true" />
+                    </a>
+                  ) : (
+                    <span className="text-slate-600">--</span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

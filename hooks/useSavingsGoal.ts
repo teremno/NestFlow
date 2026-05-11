@@ -14,6 +14,7 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import type { Client } from "viem";
 
+import { saveCompletedFlow } from "@/lib/completed-flows";
 import { CHAINS, LIFI_CONFIG, TOKENS, type SolanaDefiProtocol } from "@/lib/constants";
 
 export type SavingsExecutionStatus =
@@ -248,6 +249,14 @@ export function useSavingsGoal() {
       });
 
       setExecutedRoute(result);
+      saveCompletedFlow({
+        fromChain: params.fromChain,
+        fromToken: params.fromToken,
+        fromAmount: params.fromAmount,
+        targetProtocol: params.targetProtocol,
+        quote,
+        route: result,
+      });
       setSteps((currentSteps) =>
         currentSteps.map((step) => ({
           ...step,

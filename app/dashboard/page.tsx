@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { ArrowLeft, Plus, Wallet } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 
 import { PositionCard } from "@/components/PositionCard";
-import { TransactionHistory } from "@/components/TransactionHistory";
+import { TransactionHistory, type TransactionHistoryItem } from "@/components/TransactionHistory";
+import { getCompletedFlows, type CompletedFlow } from "@/lib/completed-flows";
+import { SOLANA_DEFI } from "@/lib/constants";
 
-const POSITIONS = [
+const DEMO_POSITIONS = [
   {
     protocol: "Marinade",
     amount: 1240,
@@ -26,6 +29,20 @@ const POSITIONS = [
   },
 ] as const;
 
+type DashboardPosition = {
+  id: string;
+  protocol: string;
+  amount: number;
+  token: string;
+  apy: number;
+  chain: string;
+  txHash?: string;
+  txLink?: string;
+  description?: string;
+  amountLabel?: string;
+  yieldLabel?: string;
+};
+
 function shortenAddress(address?: string): string {
   if (!address) {
     return "Demo wallet";
@@ -42,21 +59,89 @@ function formatUsd(value: number): string {
   });
 }
 
+function parseDashboardAmount(value: string): number {
+  const normalizedValue = value.replaceAll(",", "");
+  const numericValue = Number(normalizedValue);
+
+  return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
+}
+
+function toPositions(flows: CompletedFlow[]): DashboardPosition[] {
+  return flows.map((flow) => ({
+    id: flow.id,
+    protocol: flow.targetProtocolName,
+    amount: parseDashboardAmount(flow.receivedAmount),
+    token: flow.receivedToken,
+    apy: SOLANA_DEFI[flow.targetProtocol].apy,
+    chain: flow.receivedChain,
+    txHash: flow.txs[0]?.hash,
+    txLink: flow.txs[0]?.link,
+    description: "Completed LI.FI bridge/swap. Protocol deposit is selected, not executed yet.",
+    amountLabel: "Received",
+    yieldLabel: "Projected yearly yield",
+  }));
+}
+
+function toTransactions(flows: CompletedFlow[]): TransactionHistoryItem[] {
+  return flows.map((flow) => ({
+    id: flow.id,
+    date: formatDate(flow.timestamp),
+    from: `${flow.sourceChain} ${flow.sourceToken}`,
+    to: `${flow.targetProtocolName} ${flow.receivedToken}`,
+    amount: `${flow.receivedAmount} ${flow.receivedToken}`,
+    status: flow.status,
+    txHash: flow.txs[0]?.hash,
+    txLink: flow.txs[0]?.link,
+  }));
+}
+
 export default function DashboardPage() {
   const { address } = useAccount();
-  const hasPositions = POSITIONS.length > 0;
-  const totalSaved = POSITIONS.reduce((sum, position) => sum + position.amount, 0);
-  const totalEarned = POSITIONS.reduce(
+  const [completedFlows, setCompletedFlows] = useState<CompletedFlow[]>([]);
+
+  useEffect(() => {
+    setCompletedFlows(getCompletedFlows());
+  }, []);
+
+  const positions =
+    completedFlows.length > 0
+      ? toPositions(completedFlows)
+      : DEMO_POSITIONS.map((position) => ({
+          id: position.protocol,
+          ...position,
+        }));
+  const transactions =
+    completedFlows.length > 0 ? toTransactions(completedFlows) : undefined;
+  const isUsingDemoData = completedFlows.length === 0;
+  const hasPositions = positions.length > 0;
+  const totalSaved = positions.reduce((sum, position) => sum + position.amount, 0);
+  const totalEarned = positions.reduce(
     (sum, position) => sum + position.amount * position.apy,
     0,
   );
   const averageApy =
-    POSITIONS.reduce((sum, position) => sum + position.apy, 0) / POSITIONS.length;
+    positions.length > 0
+      ? positions.reduce((sum, position) => sum + position.apy, 0) / positions.length
+      : 0;
 
   const stats = [
     { label: "Total Saved", value: formatUsd(totalSaved) },
     { label: "Total Earned", value: formatUsd(totalEarned) },
-    { label: "Active Positions", value: POSITIONS.length.toString() },
+    { label: "Completed Flows", value: positions.length.toString() },
     { label: "Average APY", value: `${(averageApy * 100).toFixed(1)}%` },
   ];
 
@@ -105,10 +190,16 @@ export default function DashboardPage() {
           ))}
         </section>
 
+        {isUsingDemoData ? (
+          <section className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            Demo portfolio data is shown until a real LI.FI flow completes in this browser.
+          </section>
+        ) : null}
+
         {hasPositions ? (
           <section className="grid gap-5 lg:grid-cols-2">
-            {POSITIONS.map((position) => (
-              <PositionCard key={position.protocol} {...position} />
+            {positions.map((position) => (
+              <PositionCard key={position.id} {...position} />
             ))}
           </section>
         ) : (
@@ -127,7 +218,7 @@ export default function DashboardPage() {
           </section>
         )}
 
-        <TransactionHistory />
+        <TransactionHistory transactions={transactions} />
       </div>
     </main>
   );

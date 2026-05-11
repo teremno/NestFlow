@@ -9,6 +9,10 @@ export interface PositionCardProps {
   apy: number;
   chain: string;
   txHash?: string;
+  txLink?: string;
+  description?: string;
+  amountLabel?: string;
+  yieldLabel?: string;
 }
 
 const PROTOCOL_STYLES: Record<string, string> = {
@@ -42,8 +46,13 @@ export function PositionCard({
   apy,
   chain,
   txHash,
+  txLink,
+  description = `${chain} yield position`,
+  amountLabel = "Deposited",
+  yieldLabel = "Yearly yield",
 }: PositionCardProps) {
   const yearlyYield = amount * apy;
+  const explorerUrl = txLink ?? (txHash ? getExplorerUrl(txHash) : undefined);
 
   return (
     <article className="rounded-lg border border-dark-800/50 bg-dark-900/80 p-5 shadow-2xl shadow-black/20 backdrop-blur transition hover:border-primary-400/60 hover:shadow-[0_0_34px_rgba(14,165,233,0.16)]">
@@ -57,7 +66,7 @@ export function PositionCard({
               {protocol}
             </span>
           </div>
-          <p className="mt-2 text-sm text-slate-400">{chain} yield position</p>
+          <p className="mt-2 text-sm text-slate-400">{description}</p>
         </div>
 
         <span className="rounded-md border border-accent-500/30 bg-accent-500/10 px-3 py-1 text-xs font-semibold text-accent-300">
@@ -67,7 +76,7 @@ export function PositionCard({
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <div>
-          <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Deposited</p>
+          <p className="text-xs uppercase tracking-[0.16em] text-slate-500">{amountLabel}</p>
           <p className="mt-1 text-2xl font-semibold text-white">{formatUsd(amount)}</p>
           <p className="mt-1 text-sm text-slate-400">{token}</p>
         </div>
@@ -84,14 +93,14 @@ export function PositionCard({
 
       <div className="mt-5 rounded-md border border-dark-800/50 bg-dark-800 px-4 py-3">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm text-slate-400">Yearly yield</span>
+          <span className="text-sm text-slate-400">{yieldLabel}</span>
           <span className="text-sm font-semibold text-white">{formatUsd(yearlyYield)}</span>
         </div>
       </div>
 
-      {txHash ? (
+      {explorerUrl ? (
         <a
-          href={getExplorerUrl(txHash)}
+          href={explorerUrl}
           target="_blank"
           rel="noreferrer"
           className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-primary-300 transition hover:text-primary-200"
