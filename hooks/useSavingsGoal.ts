@@ -2,7 +2,7 @@
 
 import {
   convertQuoteToRoute,
-  config,
+  createConfig,
   EVM,
   executeRoute,
   type LiFiStep,
@@ -14,7 +14,7 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import type { Client } from "viem";
 
-import { CHAINS, TOKENS, type SolanaDefiProtocol } from "@/lib/constants";
+import { CHAINS, LIFI_CONFIG, TOKENS, type SolanaDefiProtocol } from "@/lib/constants";
 
 export type SavingsExecutionStatus =
   | "idle"
@@ -132,20 +132,26 @@ function configureExecutionProvider(params: StartSavingsFlowParams): void {
     throw new Error("EVM wallet provider is not available. Reconnect MetaMask and try again.");
   }
 
-  config.setProviders([
-    EVM({
-      getWalletClient: async () => {
-        const walletClient = await params.getWalletClient?.();
+  createConfig({
+    integrator: LIFI_CONFIG.integrator,
+    ...(LIFI_CONFIG.apiKey ? { apiKey: LIFI_CONFIG.apiKey } : {}),
+    providers: [
+      EVM({
+        getWalletClient: async () => {
+          const walletClient = await params.getWalletClient?.();
 
-        if (!walletClient) {
-          throw new Error("EVM wallet provider is not available. Reconnect MetaMask and try again.");
-        }
+          if (!walletClient) {
+            throw new Error(
+              "EVM wallet provider is not available. Reconnect MetaMask and try again.",
+            );
+          }
 
-        return walletClient;
-      },
-      switchChain: params.switchChain,
-    }),
-  ]);
+          return walletClient;
+        },
+        switchChain: params.switchChain,
+      }),
+    ],
+  });
 }
 
 async function fetchQuote(params: StartSavingsFlowParams): Promise<LiFiStep> {
