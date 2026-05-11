@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NestFlow — Cross-Chain Savings Automator 🌉🏦
 
-## Getting Started
+> Bridge from any chain. Save on Solana. Earn DeFi yield automatically.
 
-First, run the development server:
+Built for the **Build with LI.FI: Superteam Germany** hackathon at Colosseum Frontier.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🎯 What It Does
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+NestFlow lets users set a savings goal (e.g., "save $100/week") and automatically bridges their tokens from any EVM chain to Solana, swaps to USDC, and deposits into Solana DeFi protocols (Marinade Finance, Kamino Lend) — all in one click using LI.FI Composer.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### The Problem
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Users have fragmented funds across 5+ chains
+- Moving funds to Solana DeFi requires 3+ separate transactions
+- No automated recurring savings in cross-chain DeFi
 
-## Learn More
+### The Solution
 
-To learn more about Next.js, take a look at the following resources:
+NestFlow uses LI.FI's Composer API to combine bridge → swap → deposit into a single multi-step transaction flow. Set your goal once, execute with one click.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🔧 How LI.FI Is Used
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. **LI.FI SDK** — Quote generation for cross-chain routes (EVM → Solana)
+2. **LI.FI Composer** — Multi-step transaction execution (bridge + swap + deposit in one flow)
+3. **LI.FI API** — Server-side route validation and status tracking
 
-## Deploy on Vercel
+The entire cross-chain execution layer is powered by LI.FI. Without LI.FI, users would need to manually bridge, swap, and deposit across 3 separate interfaces.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🛠 Tech Stack
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Frontend**: Next.js 15, TypeScript, Tailwind CSS, shadcn/ui
+- **Cross-Chain**: LI.FI SDK + Composer
+- **EVM Wallets**: RainbowKit + wagmi + viem
+- **Solana Wallets**: @solana/wallet-adapter
+- **DeFi Targets**: Marinade Finance, Kamino Lend
+- **Deployment**: Vercel
+
+## 🚀 Quick Start
+
+1. Clone the repo
+2. Copy `.env.example` to `.env.local` and fill in your keys
+3. Run `npm install`
+4. Run `npm run dev`
+5. Open `http://localhost:3000`
+
+## 📱 Flow
+
+1. Connect EVM wallet (source) + Solana wallet (destination)
+2. Set savings goal: source chain, token, amount, period
+3. Choose target protocol on Solana (Marinade or Kamino)
+4. Review LI.FI quote (fees, route, estimated time)
+5. Confirm → LI.FI Composer executes bridge → swap → deposit
+6. Track position on Dashboard
+
+## 🎥 Demo
+
+[Link to demo video]
+
+## 👥 Team
+
+[Your name] — Builder
+
+## 📄 License
+
+MIT
