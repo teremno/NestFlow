@@ -35,11 +35,11 @@ const PROTOCOL_CONTENT: Record<
   }
 > = {
   marinade: {
-    description: "Liquid staking strategy for SOL yield with broad Solana ecosystem liquidity.",
+    description: "Coming next: SOL to mSOL staking strategy after the Kamino USDC deposit flow.",
     icon: TrendingUp,
   },
   kamino: {
-    description: "Lending vault strategy focused on automated yield and risk-managed liquidity.",
+    description: "Live: deposit received USDC into Kamino Lend after the LI.FI bridge.",
     icon: Zap,
   },
 };
@@ -64,7 +64,7 @@ export function SavingsGoalForm({ onStartSaving }: SavingsGoalFormProps) {
   const [amount, setAmount] = useState("");
   const [savingsPeriod, setSavingsPeriod] =
     useState<SavingsGoalFormData["savingsPeriod"]>("weekly");
-  const [targetProtocol, setTargetProtocol] = useState<SolanaDefiProtocol>("marinade");
+  const [targetProtocol, setTargetProtocol] = useState<SolanaDefiProtocol>("kamino");
 
   const selectedChain = SOURCE_CHAINS.find((chain) => chain.key === sourceChain) ?? SOURCE_CHAINS[0];
   const tokenOptions = useMemo(
@@ -121,7 +121,7 @@ export function SavingsGoalForm({ onStartSaving }: SavingsGoalFormProps) {
           <p className="mb-2 text-sm font-medium uppercase tracking-[0.18em] text-primary-300">
             Savings Goal
           </p>
-          <h2 className="text-2xl font-semibold text-white">Set up your recurring flow</h2>
+          <h2 className="text-2xl font-semibold text-white">Set up your savings flow</h2>
         </div>
         <div className="hidden rounded-md border border-accent-500/30 bg-accent-500/10 p-3 text-accent-400 sm:block">
           <ArrowDownToLine className="size-5" aria-hidden="true" />
@@ -197,7 +197,7 @@ export function SavingsGoalForm({ onStartSaving }: SavingsGoalFormProps) {
         <div className="lg:col-span-2">
           <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-300">
             <Clock className="size-4 text-primary-400" aria-hidden="true" />
-            Savings Period
+            Cadence Roadmap
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             {SAVINGS_PERIODS.map((period) => (
@@ -221,6 +221,9 @@ export function SavingsGoalForm({ onStartSaving }: SavingsGoalFormProps) {
               </label>
             ))}
           </div>
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            Live hackathon execution is one-time. Cadence is kept as product roadmap context.
+          </p>
         </div>
 
         <div className="lg:col-span-2">
@@ -233,13 +236,19 @@ export function SavingsGoalForm({ onStartSaving }: SavingsGoalFormProps) {
               const protocolInfo = SOLANA_DEFI[protocol];
               const Icon = PROTOCOL_CONTENT[protocol].icon;
               const selected = targetProtocol === protocol;
+              const disabled = protocol !== "kamino";
 
               return (
                 <button
                   key={protocol}
                   type="button"
-                  onClick={() => setTargetProtocol(protocol)}
-                  className={`rounded-lg border p-4 text-left transition ${
+                  onClick={() => {
+                    if (!disabled) {
+                      setTargetProtocol(protocol);
+                    }
+                  }}
+                  disabled={disabled}
+                  className={`rounded-lg border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${
                     selected
                       ? "border-accent-500 bg-accent-500/10 shadow-lg shadow-accent-500/10"
                       : "border-dark-800/50 bg-dark-800 hover:border-slate-600"
@@ -250,7 +259,7 @@ export function SavingsGoalForm({ onStartSaving }: SavingsGoalFormProps) {
                       <Icon className="size-5" aria-hidden="true" />
                     </div>
                     <div className="rounded-full bg-success-500/10 px-3 py-1 text-sm font-semibold text-success-400">
-                      {(protocolInfo.apy * 100).toFixed(1)}% APY
+                      {disabled ? "Coming soon" : `${(protocolInfo.apy * 100).toFixed(1)}% APY`}
                     </div>
                   </div>
                   <h3 className="text-base font-semibold text-white">{protocolInfo.name}</h3>

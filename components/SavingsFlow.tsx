@@ -306,8 +306,9 @@ export function SavingsFlow({
                   Target Protocol
                 </p>
                 <p className="mt-1 font-semibold text-white">
-                  {SOLANA_DEFI[reviewParams.targetProtocol].name} selected. Current MVP receives
-                  USDC on Solana first; protocol deposit is not executed on-chain yet.
+                  {SOLANA_DEFI[reviewParams.targetProtocol].name}. NestFlow will receive USDC on
+                  Solana first, then request a second Solana wallet signature to deposit into
+                  Kamino.
                 </p>
               </div>
             </div>

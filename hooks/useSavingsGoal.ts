@@ -17,6 +17,11 @@ import type { Client } from "viem";
 import { saveCompletedFlow } from "@/lib/completed-flows";
 import { CHAINS, LIFI_CONFIG, TOKENS, type SolanaDefiProtocol } from "@/lib/constants";
 
+export interface ProtocolDepositResult {
+  hash: string;
+  link: string;
+}
+
 export type SavingsExecutionStatus =
   | "idle"
   | "quoting"
@@ -47,6 +52,7 @@ export interface StartSavingsFlowParams {
   quote?: LiFiStep;
   getWalletClient?: () => Promise<Client | undefined>;
   switchChain?: SwitchChainHook;
+  depositIntoProtocol?: (amount: string) => Promise<ProtocolDepositResult>;
 }
 
 export interface SavingsGoalState
@@ -59,8 +65,8 @@ export interface SavingsGoalState
 
 const INITIAL_STEPS: SavingsExecutionStep[] = [
   { type: "bridge", label: "Bridge", status: "pending" },
-  { type: "swap", label: "Swap", status: "pending" },
-  { type: "deposit", label: "Deposit", status: "pending" },
+  { type: "swap", label: "Receive USDC", status: "pending" },
+  { type: "deposit", label: "Kamino Deposit", status: "pending" },
 ];
 
 function getFriendlyErrorMessage(error: unknown): string {
@@ -82,12 +88,8 @@ function normalizeTxHashes(route?: RouteExtended): string[] {
 }
 
 function getStepTypeFromProcess(process: Process): SavingsStepType {
-  if (process.type === "SWAP") {
+  if (process.type === "SWAP" || process.type === "RECEIVING_CHAIN") {
     return "swap";
-  }
-
-  if (process.type === "RECEIVING_CHAIN") {
-    return "deposit";
   }
 
   return "bridge";
@@ -216,8 +218,8 @@ export function useSavingsGoal() {
     setExecutedRoute(null);
     setSteps([
       { type: "bridge", label: "Bridge", status: "active" },
-      { type: "swap", label: "Swap", status: "pending" },
-      { type: "deposit", label: "Deposit", status: "pending" },
+      { type: "swap", label: "Receive USDC", status: "pending" },
+      { type: "deposit", label: "Kamino Deposit", status: "pending" },
     ]);
     setExecutionStatus("quoting");
 
@@ -249,6 +251,32 @@ export function useSavingsGoal() {
       });
 
       setExecutedRoute(result);
+      setSteps((currentSteps) =>
+        currentSteps.map((step) =>
+          step.type === "deposit"
+            ? {
+                ...step,
+                status: "active",
+                message: "Waiting for Solana wallet signature.",
+              }
+            : {
+                ...step,
+                status: step.status === "failed" ? "failed" : "done",
+              },
+        ),
+      );
+
+      if (params.targetProtocol !== "kamino") {
+        throw new Error("Marinade deposit is planned next. Use Kamino for live deposits.");
+      }
+
+      if (!params.depositIntoProtocol) {
+        throw new Error("Kamino deposit provider is not available. Reconnect Solana wallet.");
+      }
+
+      const depositAmount = result.toAmount ?? quote.estimate.toAmount;
+      const protocolTx = await params.depositIntoProtocol(depositAmount);
+
       saveCompletedFlow({
         fromChain: params.fromChain,
         fromToken: params.fromToken,
@@ -256,12 +284,23 @@ export function useSavingsGoal() {
         targetProtocol: params.targetProtocol,
         quote,
         route: result,
+        protocolTxs: [protocolTx],
       });
       setSteps((currentSteps) =>
-        currentSteps.map((step) => ({
-          ...step,
-          status: step.status === "failed" ? "failed" : "done",
-        })),
+        currentSteps.map((step) =>
+          step.type === "deposit"
+            ? {
+                ...step,
+                status: "done",
+                txHash: protocolTx.hash,
+                txLink: protocolTx.link,
+                message: "USDC deposited into Kamino.",
+              }
+            : {
+                ...step,
+                status: step.status === "failed" ? "failed" : "done",
+              },
+        ),
       );
       setExecutionStatus("done");
 

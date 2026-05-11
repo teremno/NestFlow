@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  serverExternalPackages: [
+    "@kamino-finance/klend-sdk",
+    "@kamino-finance/farms-sdk",
+    "@kamino-finance/kliquidity-sdk",
+    "@orca-so/whirlpools-core",
+  ],
 };
 
 export default nextConfig;

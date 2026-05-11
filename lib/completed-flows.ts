@@ -34,6 +34,7 @@ export interface SaveCompletedFlowParams {
   targetProtocol: SolanaDefiProtocol;
   quote: LiFiStep;
   route: RouteExtended;
+  protocolTxs?: CompletedFlowTx[];
 }
 
 const STORAGE_KEY = "nestflow.completedFlows.v1";
@@ -160,7 +161,7 @@ export function saveCompletedFlow(params: SaveCompletedFlowParams): CompletedFlo
     receivedAmount: formatUnits(params.route.toAmount ?? params.quote.estimate.toAmount, toToken.decimals),
     targetProtocol: params.targetProtocol,
     targetProtocolName: protocol.name,
-    txs: uniqueTxs(params.route),
+    txs: [...uniqueTxs(params.route), ...(params.protocolTxs ?? [])],
     timestamp: new Date().toISOString(),
     status: "completed",
   };

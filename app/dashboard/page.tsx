@@ -88,9 +88,12 @@ function toPositions(flows: CompletedFlow[]): DashboardPosition[] {
     token: flow.receivedToken,
     apy: SOLANA_DEFI[flow.targetProtocol].apy,
     chain: flow.receivedChain,
-    txHash: flow.txs[0]?.hash,
-    txLink: flow.txs[0]?.link,
-    description: "Completed LI.FI bridge/swap. Protocol deposit is selected, not executed yet.",
+    txHash: flow.txs[flow.txs.length - 1]?.hash,
+    txLink: flow.txs[flow.txs.length - 1]?.link,
+    description:
+      flow.targetProtocol === "kamino" && flow.txs.length > 1
+        ? "Completed LI.FI bridge/swap and Kamino USDC deposit."
+        : "Completed LI.FI bridge/swap. Protocol deposit was not recorded for this flow.",
     amountLabel: "Received",
     yieldLabel: "Projected yearly yield",
   }));
@@ -104,8 +107,8 @@ function toTransactions(flows: CompletedFlow[]): TransactionHistoryItem[] {
     to: `${flow.targetProtocolName} ${flow.receivedToken}`,
     amount: `${flow.receivedAmount} ${flow.receivedToken}`,
     status: flow.status,
-    txHash: flow.txs[0]?.hash,
-    txLink: flow.txs[0]?.link,
+    txHash: flow.txs[flow.txs.length - 1]?.hash,
+    txLink: flow.txs[flow.txs.length - 1]?.link,
   }));
 }
 

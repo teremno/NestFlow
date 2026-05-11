@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { ArrowLeftRight, CheckCircle, Layers, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Transaction } from "@solana/web3.js";
 import { parseUnits } from "viem";
 import { useAccount } from "wagmi";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 
 import {
   SavingsGoalForm,
@@ -15,7 +16,7 @@ import { SavingsFlow } from "@/components/SavingsFlow";
 import { StepIndicator, type FlowStep } from "@/components/StepIndicator";
 import { WalletConnect } from "@/components/WalletConnect";
 import { useLifiQuote, type UseLifiQuoteParams } from "@/hooks/useLifiQuote";
-import { CHAINS, SOLANA_DEFI, TOKENS } from "@/lib/constants";
+import { CHAINS, TOKENS } from "@/lib/constants";
 
 const FEATURES = [
   {
@@ -37,8 +38,8 @@ const FEATURES = [
 
 const INITIAL_STEPS: FlowStep[] = [
   { type: "bridge", label: "Bridge", status: "pending" },
-  { type: "swap", label: "Swap", status: "pending" },
-  { type: "deposit", label: "Deposit", status: "pending" },
+  { type: "swap", label: "Receive USDC", status: "pending" },
+  { type: "deposit", label: "Kamino Deposit", status: "pending" },
 ];
 
 type HomeFlowStatus = "idle" | "connected" | "review" | "executing" | "done";
@@ -80,6 +81,21 @@ function toBaseUnits(amount: string, token: string): string {
   return parseUnits(amount, TOKEN_DECIMALS[token] ?? 18).toString();
 }
 
+function getSolscanTxUrl(signature: string): string {
+  return `https://solscan.io/tx/${signature}`;
+}
+
+function decodeBase64Transaction(value: string): Uint8Array {
+  const binary = window.atob(value);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes;
+}
+
 function SavingsQuotePreview({
   goal,
   fromAddress,
@@ -95,6 +111,8 @@ function SavingsQuotePreview({
   onExecutionStart: () => void;
   onComplete: () => void;
 }) {
+  const { connection } = useConnection();
+  const { publicKey, sendTransaction } = useWallet();
   const quoteParams: UseLifiQuoteParams = {
     fromChain: goal.sourceChainId,
     toChain: CHAINS.solana.id,
@@ -105,6 +123,45 @@ function SavingsQuotePreview({
     toAddress,
   };
   const { quote, isLoading, error, refetch } = useLifiQuote(quoteParams);
+
+  async function depositIntoKamino(amount: string) {
+    if (!publicKey) {
+      throw new Error("Solana wallet is not connected.");
+    }
+
+    const response = await fetch("/api/kamino/deposit", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        amount,
+        owner: publicKey.toBase58(),
+      }),
+    });
+
+    const payload = (await response.json()) as
+      | { transaction: string }
+      | { error?: { message?: string } };
+
+    if (!response.ok || !("transaction" in payload)) {
+      throw new Error(
+        "error" in payload && payload.error?.message
+          ? payload.error.message
+          : "Could not build Kamino deposit transaction.",
+      );
+    }
+
+    const transaction = Transaction.from(decodeBase64Transaction(payload.transaction));
+    const txHash = await sendTransaction(transaction, connection);
+
+    await connection.confirmTransaction(txHash, "confirmed");
+
+    return {
+      hash: txHash,
+      link: getSolscanTxUrl(txHash),
+    };
+  }
 
   if (isLoading && !quote) {
     return (
@@ -140,6 +197,7 @@ function SavingsQuotePreview({
         fromAddress,
         toAddress,
         targetProtocol: goal.targetProtocol,
+        depositIntoProtocol: depositIntoKamino,
       }}
       canExecute={walletsReady && fromAddress !== DEMO_QUOTE_ADDRESS}
       executionDisabledReason={
@@ -170,15 +228,15 @@ export default function Home() {
     if (flowStatus === "done") {
       return [
         { type: "bridge", label: "Bridge", status: "done" },
-        { type: "swap", label: "Swap", status: "done" },
-        { type: "deposit", label: "Deposit", status: "done" },
+        { type: "swap", label: "Receive USDC", status: "done" },
+        { type: "deposit", label: "Kamino Deposit", status: "done" },
       ];
     }
 
     return [
       { type: "bridge", label: "Bridge", status: "active" },
-      { type: "swap", label: "Swap", status: "pending" },
-      { type: "deposit", label: "Deposit", status: "pending" },
+      { type: "swap", label: "Receive USDC", status: "pending" },
+      { type: "deposit", label: "Kamino Deposit", status: "pending" },
     ];
   }, [flowStatus]);
 
@@ -273,8 +331,8 @@ export default function Home() {
             {savingsGoal ? (
               <>
                 <div className="rounded-lg border border-success-500/30 bg-success-500/10 p-4 text-sm text-success-400">
-                  Prepared {savingsGoal.amount} {savingsGoal.sourceToken} recurring{" "}
-                  {savingsGoal.savingsPeriod} into {SOLANA_DEFI[savingsGoal.targetProtocol].name}.
+                  Prepared {savingsGoal.amount} {savingsGoal.sourceToken} for a LI.FI bridge and
+                  Kamino USDC deposit flow.
                 </div>
                 <SavingsQuotePreview
                   goal={savingsGoal}
