@@ -2,13 +2,17 @@
 
 import {
   convertQuoteToRoute,
+  config,
+  EVM,
   executeRoute,
   type LiFiStep,
   type Process,
   type Route,
   type RouteExtended,
+  type SwitchChainHook,
 } from "@lifi/sdk";
 import { useCallback, useMemo, useState } from "react";
+import type { Client } from "viem";
 
 import { CHAINS, TOKENS, type SolanaDefiProtocol } from "@/lib/constants";
 
@@ -40,9 +44,12 @@ export interface StartSavingsFlowParams {
   targetProtocol: SolanaDefiProtocol;
   toAddress?: string;
   quote?: LiFiStep;
+  getWalletClient?: () => Promise<Client | undefined>;
+  switchChain?: SwitchChainHook;
 }
 
-export interface SavingsGoalState extends StartSavingsFlowParams {
+export interface SavingsGoalState
+  extends Omit<StartSavingsFlowParams, "getWalletClient" | "switchChain"> {
   toChain: number;
   toToken: string;
   quote?: LiFiStep;
@@ -120,6 +127,27 @@ function updateStepsFromRoute(
   return nextSteps;
 }
 
+function configureExecutionProvider(params: StartSavingsFlowParams): void {
+  if (!params.getWalletClient) {
+    throw new Error("EVM wallet provider is not available. Reconnect MetaMask and try again.");
+  }
+
+  config.setProviders([
+    EVM({
+      getWalletClient: async () => {
+        const walletClient = await params.getWalletClient?.();
+
+        if (!walletClient) {
+          throw new Error("EVM wallet provider is not available. Reconnect MetaMask and try again.");
+        }
+
+        return walletClient;
+      },
+      switchChain: params.switchChain,
+    }),
+  ]);
+}
+
 async function fetchQuote(params: StartSavingsFlowParams): Promise<LiFiStep> {
   const response = await fetch("/api/lifi", {
     method: "POST",
@@ -193,13 +221,19 @@ export function useSavingsGoal() {
       });
 
       setGoal({
-        ...params,
+        fromChain: params.fromChain,
+        fromToken: params.fromToken,
+        fromAmount: params.fromAmount,
+        fromAddress: params.fromAddress,
+        targetProtocol: params.targetProtocol,
+        toAddress: params.toAddress,
         toChain: CHAINS.solana.id,
         toToken: TOKENS.USDC.solana,
         quote,
         route,
       });
       setExecutionStatus("executing");
+      configureExecutionProvider(params);
 
       const result = await executeRoute(route, {
         updateRouteHook: (updatedRoute) => {

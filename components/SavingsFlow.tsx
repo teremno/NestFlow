@@ -3,6 +3,7 @@
 import type { LiFiStep } from "@lifi/sdk";
 import { CheckCircle, ExternalLink, Loader2, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useSwitchChain, useWalletClient } from "wagmi";
 
 import { StepIndicator, type FlowStep } from "@/components/StepIndicator";
 import {
@@ -73,6 +74,8 @@ export function SavingsFlow({
 }: SavingsFlowProps) {
   const { goal, steps, executionStatus, error, txHashes, startSavingsFlow, reset } =
     useSavingsGoal();
+  const { data: walletClient, refetch: refetchWalletClient } = useWalletClient();
+  const { switchChainAsync } = useSwitchChain();
   const [retryParams, setRetryParams] = useState<StartSavingsFlowParams | null>(null);
 
   const reviewQuote = goal?.quote ?? quote;
@@ -98,6 +101,21 @@ export function SavingsFlow({
     const nextParams = {
       ...params,
       quote,
+      getWalletClient: async () => {
+        if (walletClient) {
+          return walletClient;
+        }
+
+        const result = await refetchWalletClient();
+
+        return result.data;
+      },
+      switchChain: async (chainId: number) => {
+        await switchChainAsync({ chainId });
+        const result = await refetchWalletClient();
+
+        return result.data;
+      },
     };
 
     setRetryParams(nextParams);
