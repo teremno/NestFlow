@@ -13,6 +13,8 @@ interface LifiApiBody {
 
 const MAX_BODY_BYTES = 16 * 1024;
 const LIFI_TIMEOUT_MS = 15_000;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 30;
 const ALLOWED_METHODS = "POST, OPTIONS";
 const ALLOWED_HEADERS = "Content-Type, Idempotency-Key";
 const ALLOWED_ORIGINS = new Set(
@@ -20,6 +22,7 @@ const ALLOWED_ORIGINS = new Set(
     Boolean,
   ) as string[],
 );
+const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
 
 function corsHeaders(request: NextRequest): Headers {
   const headers = new Headers({
@@ -44,6 +47,12 @@ function jsonResponse(
 ): NextResponse {
   const requestId = crypto.randomUUID();
   const headers = corsHeaders(request);
+  const initHeaders = new Headers(init.headers);
+
+  initHeaders.forEach((value, key) => {
+    headers.set(key, value);
+  });
+
   headers.set("x-request-id", requestId);
 
   return NextResponse.json(
@@ -55,6 +64,41 @@ function jsonResponse(
       headers,
     },
   );
+}
+
+function getClientIp(request: NextRequest): string {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+
+  if (forwardedFor) {
+    return forwardedFor.split(",")[0]?.trim() || "unknown";
+  }
+
+  return request.headers.get("x-real-ip") ?? "unknown";
+}
+
+function checkRateLimit(key: string): { allowed: true } | { allowed: false; retryAfter: number } {
+  const now = Date.now();
+  const existingBucket = rateLimitBuckets.get(key);
+
+  if (!existingBucket || existingBucket.resetAt <= now) {
+    rateLimitBuckets.set(key, {
+      count: 1,
+      resetAt: now + RATE_LIMIT_WINDOW_MS,
+    });
+
+    return { allowed: true };
+  }
+
+  if (existingBucket.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return {
+      allowed: false,
+      retryAfter: Math.ceil((existingBucket.resetAt - now) / 1_000),
+    };
+  }
+
+  existingBucket.count += 1;
+
+  return { allowed: true };
 }
 
 function parseBody(value: unknown): LifiApiBody {
@@ -174,6 +218,7 @@ export function OPTIONS(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const contentLength = Number(request.headers.get("content-length") ?? 0);
+  const contentType = request.headers.get("content-type") ?? "";
 
   if (contentLength > MAX_BODY_BYTES) {
     return jsonResponse(
@@ -185,6 +230,39 @@ export async function POST(request: NextRequest) {
         },
       },
       { status: 413 },
+    );
+  }
+
+  if (!contentType.includes("application/json")) {
+    return jsonResponse(
+      request,
+      {
+        error: {
+          code: "unsupported_media_type",
+          message: "Content-Type must be application/json.",
+        },
+      },
+      { status: 415 },
+    );
+  }
+
+  const rateLimit = checkRateLimit(`lifi:${getClientIp(request)}`);
+
+  if (!rateLimit.allowed) {
+    return jsonResponse(
+      request,
+      {
+        error: {
+          code: "rate_limited",
+          message: "Too many LI.FI requests. Please wait and try again.",
+        },
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": rateLimit.retryAfter.toString(),
+        },
+      },
     );
   }
 

@@ -24,6 +24,8 @@ const TOKEN_PRICES_USD: Record<string, number> = {
   USDC: 1,
   USDT: 1,
 };
+const LARGE_AMOUNT_WARNING_USD = 1_000;
+const HACKATHON_MAX_LIVE_AMOUNT_USD = 500;
 
 const PROTOCOL_CONTENT: Record<
   SolanaDefiProtocol,
@@ -74,7 +76,16 @@ export function SavingsGoalForm({ onStartSaving }: SavingsGoalFormProps) {
     Number.isFinite(numericAmount) && numericAmount > 0
       ? numericAmount * (TOKEN_PRICES_USD[sourceToken] ?? 0)
       : 0;
-  const canSubmit = Boolean(sourceChain && sourceToken && numericAmount > 0 && savingsPeriod && targetProtocol);
+  const exceedsHackathonCap = amountUsd > HACKATHON_MAX_LIVE_AMOUNT_USD;
+  const isLargeAmount = amountUsd > LARGE_AMOUNT_WARNING_USD;
+  const canSubmit = Boolean(
+    sourceChain &&
+      sourceToken &&
+      numericAmount > 0 &&
+      savingsPeriod &&
+      targetProtocol &&
+      !exceedsHackathonCap,
+  );
 
   function handleSourceChainChange(nextChain: SavingsGoalFormData["sourceChain"]) {
     const chain = SOURCE_CHAINS.find((item) => item.key === nextChain) ?? SOURCE_CHAINS[0];
@@ -169,6 +180,18 @@ export function SavingsGoalForm({ onStartSaving }: SavingsGoalFormProps) {
               {amountUsd > 0 ? `~$${amountUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "$0.00"}
             </div>
           </div>
+          {isLargeAmount ? (
+            <p className="mt-2 text-sm leading-6 text-amber-200">
+              Large transfer warning: verify wallet, destination address, quote, fees, and route
+              before signing.
+            </p>
+          ) : null}
+          {exceedsHackathonCap ? (
+            <p className="mt-2 text-sm leading-6 text-red-200">
+              Hackathon safety limit: live execution is capped at $
+              {HACKATHON_MAX_LIVE_AMOUNT_USD.toLocaleString()} per flow.
+            </p>
+          ) : null}
         </label>
 
         <div className="lg:col-span-2">
@@ -239,6 +262,11 @@ export function SavingsGoalForm({ onStartSaving }: SavingsGoalFormProps) {
             })}
           </div>
         </div>
+      </div>
+
+      <div className="mt-6 rounded-lg border border-success-500/30 bg-success-500/10 p-4 text-sm leading-6 text-success-100">
+        NestFlow is non-custodial. Your funds move from your wallet through LI.FI contracts to
+        your Solana wallet; NestFlow never holds private keys or custody of funds.
       </div>
 
       <button

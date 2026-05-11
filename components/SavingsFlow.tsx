@@ -1,7 +1,7 @@
 "use client";
 
 import type { LiFiStep } from "@lifi/sdk";
-import { CheckCircle, ExternalLink, Loader2, XCircle } from "lucide-react";
+import { CheckCircle, ExternalLink, Loader2, ShieldCheck, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useSwitchChain, useWalletClient } from "wagmi";
 
@@ -11,6 +11,7 @@ import {
   type StartSavingsFlowParams,
   useSavingsGoal,
 } from "@/hooks/useSavingsGoal";
+import { SOLANA_DEFI } from "@/lib/constants";
 
 export interface SavingsFlowProps {
   quote?: LiFiStep;
@@ -51,6 +52,29 @@ function formatUsd(value?: string): string {
   });
 }
 
+function sumUsd(values?: Array<{ amountUSD?: string }>): string {
+  const total =
+    values?.reduce((sum, item) => {
+      const value = Number(item.amountUSD);
+
+      return Number.isFinite(value) ? sum + value : sum;
+    }, 0) ?? 0;
+
+  return total.toString();
+}
+
+function shortenAddress(address?: string): string {
+  if (!address) {
+    return "Not available";
+  }
+
+  if (address.length <= 12) {
+    return address;
+  }
+
+  return `${address.slice(0, 6)}...${address.slice(-6)}`;
+}
+
 function getExplorerUrl(txHash: string): string {
   return `https://solscan.io/tx/${txHash}`;
 }
@@ -77,9 +101,19 @@ export function SavingsFlow({
   const { data: walletClient, refetch: refetchWalletClient } = useWalletClient();
   const { switchChainAsync } = useSwitchChain();
   const [retryParams, setRetryParams] = useState<StartSavingsFlowParams | null>(null);
+  const [safetyConfirmed, setSafetyConfirmed] = useState(false);
 
   const reviewQuote = goal?.quote ?? quote;
   const reviewParams = goal ?? params;
+  const destinationAddress = reviewQuote?.action.toAddress ?? reviewParams.toAddress;
+  const contractAddress = reviewQuote?.estimate.approvalAddress;
+  const estimatedFeesUsd = sumUsd([
+    ...(reviewQuote?.estimate?.feeCosts ?? []),
+    ...(reviewQuote?.estimate?.gasCosts ?? []),
+  ]);
+  const fromAmountUsd = Number(reviewQuote?.estimate?.fromAmountUSD ?? 0);
+  const exceedsHackathonCap = Number.isFinite(fromAmountUsd) && fromAmountUsd > 500;
+  const isLargeAmount = Number.isFinite(fromAmountUsd) && fromAmountUsd > 1_000;
   const explorerLinks = steps.flatMap((step) => {
     if (step.txLink) {
       return [step.txLink];
@@ -185,7 +219,7 @@ export function SavingsFlow({
             <div>
               <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Fees + Gas</p>
               <p className="mt-1 font-medium text-white">
-                {formatUsd(reviewQuote?.estimate?.gasCosts?.[0]?.amountUSD)}
+                {formatUsd(estimatedFeesUsd)}
               </p>
             </div>
             <div>
@@ -200,6 +234,108 @@ export function SavingsFlow({
               <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Route</p>
               <p className="mt-1 font-medium text-white">{quoteRoute}</p>
             </div>
+          </div>
+        ) : null}
+
+        {!isExecuting && !isDone && !isFailed && reviewQuote ? (
+          <div className="rounded-lg border border-primary-400/30 bg-primary-500/10 p-4 text-sm text-slate-200">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-primary-400/30 bg-primary-400/10 text-primary-300">
+                <ShieldCheck className="size-5" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="font-semibold text-white">Transaction Preview</p>
+                <p className="mt-1 text-slate-400">
+                  Review these details before MetaMask opens. NestFlow is non-custodial and does
+                  not hold your funds.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-md border border-dark-800/60 bg-dark-900/60 p-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-slate-500">You send</p>
+                <p className="mt-1 font-semibold text-white">
+                  {formatTokenAmount(
+                    reviewQuote.action.fromAmount,
+                    reviewQuote.action.fromToken.decimals,
+                    reviewQuote.action.fromToken.symbol,
+                  )}
+                </p>
+              </div>
+              <div className="rounded-md border border-dark-800/60 bg-dark-900/60 p-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-slate-500">You receive</p>
+                <p className="mt-1 font-semibold text-white">
+                  {formatTokenAmount(
+                    reviewQuote.estimate.toAmount,
+                    reviewQuote.action.toToken.decimals,
+                    reviewQuote.action.toToken.symbol,
+                  )}
+                </p>
+              </div>
+              <div className="rounded-md border border-dark-800/60 bg-dark-900/60 p-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Fees + Gas</p>
+                <p className="mt-1 font-semibold text-white">{formatUsd(estimatedFeesUsd)}</p>
+              </div>
+              <div className="rounded-md border border-dark-800/60 bg-dark-900/60 p-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-slate-500">Slippage</p>
+                <p className="mt-1 font-semibold text-white">
+                  {typeof reviewQuote.action.slippage === "number"
+                    ? `${(reviewQuote.action.slippage * 100).toFixed(2)}%`
+                    : "Set by LI.FI quote"}
+                </p>
+              </div>
+              <div className="rounded-md border border-dark-800/60 bg-dark-900/60 p-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-slate-500">
+                  Destination
+                </p>
+                <p className="mt-1 break-all font-semibold text-white">
+                  {shortenAddress(destinationAddress)}
+                </p>
+              </div>
+              <div className="rounded-md border border-dark-800/60 bg-dark-900/60 p-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-slate-500">
+                  LI.FI Contract
+                </p>
+                <p className="mt-1 break-all font-semibold text-white">
+                  {shortenAddress(contractAddress)}
+                </p>
+              </div>
+              <div className="rounded-md border border-dark-800/60 bg-dark-900/60 p-3 sm:col-span-2">
+                <p className="text-xs uppercase tracking-[0.14em] text-slate-500">
+                  Target Protocol
+                </p>
+                <p className="mt-1 font-semibold text-white">
+                  {SOLANA_DEFI[reviewParams.targetProtocol].name} selected. Current MVP receives
+                  USDC on Solana first; protocol deposit is not executed on-chain yet.
+                </p>
+              </div>
+            </div>
+
+            {isLargeAmount ? (
+              <p className="mt-4 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-amber-100">
+                Large transfer warning: verify the route, destination, and contract before
+                signing.
+              </p>
+            ) : null}
+            {exceedsHackathonCap ? (
+              <p className="mt-4 rounded-md border border-red-500/30 bg-red-500/10 p-3 text-red-100">
+                Hackathon safety cap: live execution is limited to $500 per flow.
+              </p>
+            ) : null}
+
+            <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-md border border-dark-800/60 bg-dark-900/60 p-3">
+              <input
+                type="checkbox"
+                checked={safetyConfirmed}
+                onChange={(event) => setSafetyConfirmed(event.target.checked)}
+                className="mt-1 size-4 accent-primary-500"
+              />
+              <span className="text-sm leading-6 text-slate-300">
+                I verified the amount, destination address, LI.FI contract, route, and selected
+                protocol before signing.
+              </span>
+            </label>
           </div>
         ) : null}
 
@@ -272,10 +408,10 @@ export function SavingsFlow({
             <button
               type="button"
               onClick={() => void handleExecute()}
-              disabled={!quote || !canExecute}
+              disabled={!quote || !canExecute || !safetyConfirmed || exceedsHackathonCap}
               className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-md bg-primary-500 px-4 text-sm font-semibold text-white transition hover:bg-primary-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
             >
-              Confirm & Execute
+              Confirm & Sign
             </button>
           ) : null}
 
