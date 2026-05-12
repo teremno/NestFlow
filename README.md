@@ -1,66 +1,112 @@
-# NestFlow — Cross-Chain Savings Automator 🌉🏦
+# NestFlow
 
-> Bridge from any chain. Save on Solana. Earn DeFi yield automatically.
+Cross-chain savings flow for moving funds from EVM chains into Solana DeFi.
 
-Built for the **Build with LI.FI: Superteam Germany** hackathon at Colosseum Frontier.
+Live demo: [https://www.nestflow.host](https://www.nestflow.host)
 
-## 🎯 What It Does
+Built for [Build with LI.FI: Superteam Germany](https://superteam.fun/earn/listing/build-with-lifi-superteam-germany).
 
-NestFlow lets users set a savings goal (e.g., "save $100/week") and automatically bridges their tokens from any EVM chain to Solana, swaps to USDC, and deposits into Solana DeFi protocols (Marinade Finance, Kamino Lend) — all in one click using LI.FI Composer.
+## What It Does
 
-### The Problem
+NestFlow helps a user move funds from an EVM chain to Solana and deposit the received USDC into Kamino Lend.
 
-- Users have fragmented funds across 5+ chains
-- Moving funds to Solana DeFi requires 3+ separate transactions
-- No automated recurring savings in cross-chain DeFi
+The confirmed live demo flow is:
 
-### The Solution
+1. Bridge/swap from Base through LI.FI and Mayan.
+2. Receive USDC on Solana.
+3. Deposit USDC into Kamino Lend.
 
-NestFlow uses LI.FI's Composer API to combine bridge → swap → deposit into a single multi-step transaction flow. Set your goal once, execute with one click.
+## Why It Matters
 
-## 🔧 How LI.FI Is Used
+Cross-chain DeFi savings is still too fragmented. A user normally needs to open multiple apps, move assets across chains, wait for settlement, then manually deposit into a Solana yield protocol.
 
-1. **LI.FI SDK** — Quote generation for cross-chain routes (EVM → Solana)
-2. **LI.FI Composer** — Multi-step transaction execution (bridge + swap + deposit in one flow)
-3. **LI.FI API** — Server-side route validation and status tracking
+NestFlow turns that into one guided flow with explicit status tracking and retry support for the final Solana deposit step.
 
-The entire cross-chain execution layer is powered by LI.FI. Without LI.FI, users would need to manually bridge, swap, and deposit across 3 separate interfaces.
+## Live Proof
 
-## 🛠 Tech Stack
+End-to-end mainnet flow has been confirmed:
 
-- **Frontend**: Next.js 15, TypeScript, Tailwind CSS, shadcn/ui
-- **Cross-Chain**: LI.FI SDK + Composer
-- **EVM Wallets**: RainbowKit + wagmi + viem
-- **Solana Wallets**: @solana/wallet-adapter
-- **DeFi Targets**: Marinade Finance, Kamino Lend
-- **Deployment**: Vercel
+- Base LI.FI/Mayan transaction: [0x20a8886a6109c0036a79b08b2282331bf0d87b4a7718e4d6ef3713c06f404857](https://basescan.org/tx/0x20a8886a6109c0036a79b08b2282331bf0d87b4a7718e4d6ef3713c06f404857)
+- Solana Mayan settle / receive USDC transaction: [DD9RWAsk3qTwTm6xz56foBFD9LqMc8VY2AnVmX56Mh1qagXnh1ffo5hsWMxLE1xztBaHskAVVLitXqRoeCK9BhL](https://solscan.io/tx/DD9RWAsk3qTwTm6xz56foBFD9LqMc8VY2AnVmX56Mh1qagXnh1ffo5hsWMxLE1xztBaHskAVVLitXqRoeCK9BhL)
+- Kamino deposit transaction: [526ACoonsTBWctAt9YdCN2Z8GUaDoKybiC7HDyKoZ79PKhX7wk7u8d1M6U8R93bRRufUEAd2uAUhtX5rZZLFWorp](https://solscan.io/tx/526ACoonsTBWctAt9YdCN2Z8GUaDoKybiC7HDyKoZ79PKhX7wk7u8d1M6U8R93bRRufUEAd2uAUhtX5rZZLFWorp)
 
-## 🚀 Quick Start
+More detail: [docs/demo-proof.md](docs/demo-proof.md)
 
-1. Clone the repo
-2. Copy `.env.example` to `.env.local` and fill in your keys
-3. Run `npm install`
-4. Run `npm run dev`
-5. Open `http://localhost:3000`
+## Architecture
 
-## 📱 Flow
+```mermaid
+flowchart LR
+  A["EVM wallet on Base"] --> B["LI.FI route"]
+  B --> C["Mayan bridge"]
+  C --> D["Solana wallet receives USDC"]
+  D --> E["Kamino REST transaction API"]
+  E --> F["Wallet signs VersionedTransaction"]
+  F --> G["/api/solana/send"]
+  G --> H["Kamino Lend deposit"]
+```
 
-1. Connect EVM wallet (source) + Solana wallet (destination)
-2. Set savings goal: source chain, token, amount, period
-3. Choose target protocol on Solana (Marinade or Kamino)
-4. Review LI.FI quote (fees, route, estimated time)
-5. Confirm → LI.FI Composer executes bridge → swap → deposit
-6. Track position on Dashboard
+## Tech Stack
 
-## 🎥 Demo
+- Next.js 15
+- TypeScript
+- Tailwind CSS
+- wagmi + RainbowKit for EVM wallets
+- Solana wallet adapter for Phantom and Solflare
+- LI.FI SDK/API
+- Kamino official REST transaction API
+- Vercel
 
-[Link to demo video]
+## Key Routes
 
-## 👥 Team
+- `app/api/lifi/route.ts` - LI.FI route handling.
+- `app/api/kamino/deposit/route.ts` - creates an unsigned Kamino deposit transaction through the official Kamino REST API.
+- `app/api/solana/send/route.ts` - submits a signed Solana transaction server-side and polls confirmation.
 
-Oleksandr / teremno — Builder  
+## Environment
+
+Production requires:
+
+```env
+LIFI_API_KEY=...
+SOLANA_RPC=...
+```
+
+`SOLANA_RPC` must be server-side only. Do not expose it as `NEXT_PUBLIC_SOLANA_RPC`.
+
+## Local Development
+
+```bash
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## Checks
+
+```bash
+npm run lint
+npx tsc --noEmit
+npm run build
+```
+
+Known build warning:
+
+- `viem/ox` via `@lifi/sdk`: `Critical dependency: the request of a dependency is an expression`
+
+The warning is currently non-blocking and the production build passes.
+
+## Deployment
+
+Production:
+
+- [https://www.nestflow.host](https://www.nestflow.host)
+- [https://nestflow.host](https://nestflow.host) redirects to `www`
+
+Vercel project: `nest-flow`
+
+## Team
+
+Oleksandr / teremno
+
 GitHub: [@teremno](https://github.com/teremno)
-
-## 📄 License
-
-MIT
