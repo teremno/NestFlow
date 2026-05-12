@@ -408,7 +408,8 @@ export function SavingsFlow({
             {isFailedAfterBridge ? (
               <p className="mt-3 text-amber-100">
                 Bridge already completed. Do not start the full flow again; check your Solana
-                wallet for USDC and retry only the Kamino deposit after the backend is available.
+                wallet for USDC and retry only the Kamino deposit after checking the latest
+                transaction status.
               </p>
             ) : null}
           </div>

@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { ArrowLeftRight, CheckCircle, Layers, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Transaction, VersionedTransaction, type Connection } from "@solana/web3.js";
+import { Transaction, VersionedTransaction } from "@solana/web3.js";
 import { parseUnits } from "viem";
 import { useAccount } from "wagmi";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useWallet } from "@solana/wallet-adapter-react";
 
 import {
   SavingsGoalForm,
@@ -55,9 +55,6 @@ const TOKEN_DECIMALS: Record<string, number> = {
   USDC: 6,
   USDT: 6,
 };
-const SOLANA_CONFIRMATION_TIMEOUT_MS = 120_000;
-const SOLANA_CONFIRMATION_POLL_MS = 2_000;
-
 type SourceChainKey = SavingsGoalFormData["sourceChain"];
 
 const TOKEN_ADDRESSES: Record<string, Partial<Record<SourceChainKey, string>>> = {
@@ -87,12 +84,6 @@ function getSolscanTxUrl(signature: string): string {
   return `https://solscan.io/tx/${signature}`;
 }
 
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
-}
-
 function decodeBase64Transaction(value: string): Uint8Array {
   const binary = window.atob(value);
   const bytes = new Uint8Array(binary.length);
@@ -102,6 +93,16 @@ function decodeBase64Transaction(value: string): Uint8Array {
   }
 
   return bytes;
+}
+
+function encodeBase64Transaction(value: Uint8Array): string {
+  let binary = "";
+
+  for (let index = 0; index < value.length; index += 1) {
+    binary += String.fromCharCode(value[index]);
+  }
+
+  return window.btoa(binary);
 }
 
 function deserializeSolanaTransaction(value: string): Transaction | VersionedTransaction {
@@ -114,36 +115,16 @@ function deserializeSolanaTransaction(value: string): Transaction | VersionedTra
   }
 }
 
-async function waitForSolanaConfirmation(
-  connection: Connection,
-  signature: string,
-): Promise<void> {
-  const deadline = Date.now() + SOLANA_CONFIRMATION_TIMEOUT_MS;
-
-  while (Date.now() < deadline) {
-    const { value } = await connection.getSignatureStatuses([signature], {
-      searchTransactionHistory: true,
-    });
-    const status = value[0];
-
-    if (status?.err) {
-      throw new Error(
-        `Kamino deposit failed on Solana. Signature: ${signature}. Error: ${JSON.stringify(status.err)}`,
-      );
-    }
-
-    if (
-      status?.confirmationStatus === "confirmed" ||
-      status?.confirmationStatus === "finalized"
-    ) {
-      return;
-    }
-
-    await wait(SOLANA_CONFIRMATION_POLL_MS);
+function serializeSignedTransaction(value: Transaction | VersionedTransaction): string {
+  if (value instanceof VersionedTransaction) {
+    return encodeBase64Transaction(value.serialize());
   }
 
-  throw new Error(
-    `Kamino deposit transaction was submitted but not confirmed yet. Check ${getSolscanTxUrl(signature)} before retrying.`,
+  return encodeBase64Transaction(
+    value.serialize({
+      requireAllSignatures: false,
+      verifySignatures: false,
+    }),
   );
 }
 
@@ -174,8 +155,7 @@ function SavingsQuotePreview({
   onExecutionStart: () => void;
   onComplete: () => void;
 }) {
-  const { connection } = useConnection();
-  const { publicKey, sendTransaction } = useWallet();
+  const { publicKey, signTransaction } = useWallet();
   const quoteParams: UseLifiQuoteParams = {
     fromChain: goal.sourceChainId,
     toChain: CHAINS.solana.id,
@@ -190,6 +170,10 @@ function SavingsQuotePreview({
   async function depositIntoKamino(amount: string) {
     if (!publicKey) {
       throw new Error("Solana wallet is not connected.");
+    }
+
+    if (!signTransaction) {
+      throw new Error("Solana wallet cannot sign transactions. Reconnect Phantom or try Solflare.");
     }
 
     const response = await fetch("/api/kamino/deposit", {
@@ -217,13 +201,32 @@ function SavingsQuotePreview({
     }
 
     const transaction = deserializeSolanaTransaction(payload.transaction);
-    const txHash = await sendTransaction(transaction, connection);
+    const signedTransaction = await signTransaction(transaction);
+    const sendResponse = await fetch("/api/solana/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        signedTransaction: serializeSignedTransaction(signedTransaction),
+      }),
+    });
+    const sendPayload = await readJsonResponse<
+      | { signature: string }
+      | { error?: { message?: string } }
+    >(sendResponse);
 
-    await waitForSolanaConfirmation(connection, txHash);
+    if (!sendResponse.ok || !("signature" in sendPayload)) {
+      throw new Error(
+        "error" in sendPayload && sendPayload.error?.message
+          ? sendPayload.error.message
+          : "Could not submit Kamino deposit transaction.",
+      );
+    }
 
     return {
-      hash: txHash,
-      link: getSolscanTxUrl(txHash),
+      hash: sendPayload.signature,
+      link: getSolscanTxUrl(sendPayload.signature),
     };
   }
 
