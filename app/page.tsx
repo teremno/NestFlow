@@ -325,7 +325,7 @@ export default function Home() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(14,165,233,0.22),transparent_28%),radial-gradient(circle_at_80%_0%,rgba(139,92,246,0.2),transparent_28%),linear-gradient(135deg,rgba(30,27,46,0.95),rgba(15,13,26,1))]" />
       <div className="pointer-events-none absolute left-1/2 top-16 h-72 w-72 -translate-x-1/2 rounded-full bg-primary-500/10 blur-3xl" />
 
-      <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 py-12 sm:py-16 lg:px-8">
+      <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-10 sm:py-12 lg:px-8">
         <header className="flex items-center justify-between gap-4">
           <Link href="/" className="text-lg font-semibold text-white">
             NestFlow
@@ -337,7 +337,7 @@ export default function Home() {
           </nav>
         </header>
 
-        <section className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
+        <section className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
           <div>
             <p className="mb-4 text-sm font-medium uppercase tracking-[0.22em] text-primary-300">
               Cross-Chain Savings Automator
