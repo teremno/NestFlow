@@ -98,11 +98,12 @@ function decodeBase64Transaction(value: string): Uint8Array {
 
 function deserializeSolanaTransaction(value: string): Transaction | VersionedTransaction {
   const bytes = decodeBase64Transaction(value);
-  const isVersionedTransaction = (bytes[0] & 0x80) !== 0;
 
-  return isVersionedTransaction
-    ? VersionedTransaction.deserialize(bytes)
-    : Transaction.from(bytes);
+  try {
+    return VersionedTransaction.deserialize(bytes);
+  } catch {
+    return Transaction.from(bytes);
+  }
 }
 
 async function readJsonResponse<T>(response: Response): Promise<T> {
