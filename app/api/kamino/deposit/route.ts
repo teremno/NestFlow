@@ -94,16 +94,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = parseBody(await request.json());
-    const transaction = await buildKaminoUsdcDepositTransaction({
-      amount: body.amount,
-      userPublicKey: new PublicKey(body.owner),
+    const owner = new PublicKey(body.owner).toBase58();
+    const serializedTransaction = await buildKaminoUsdcDepositTransaction({
+      amountBaseUnits: body.amount,
+      wallet: owner,
     });
-    const serializedTransaction = transaction
-      .serialize({
-        requireAllSignatures: false,
-        verifySignatures: false,
-      })
-      .toString("base64");
 
     return jsonResponse({
       transaction: serializedTransaction,

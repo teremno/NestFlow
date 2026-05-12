@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ArrowLeftRight, CheckCircle, Layers, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Transaction } from "@solana/web3.js";
+import { Transaction, VersionedTransaction } from "@solana/web3.js";
 import { parseUnits } from "viem";
 import { useAccount } from "wagmi";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
@@ -96,6 +96,15 @@ function decodeBase64Transaction(value: string): Uint8Array {
   return bytes;
 }
 
+function deserializeSolanaTransaction(value: string): Transaction | VersionedTransaction {
+  const bytes = decodeBase64Transaction(value);
+  const isVersionedTransaction = (bytes[0] & 0x80) !== 0;
+
+  return isVersionedTransaction
+    ? VersionedTransaction.deserialize(bytes)
+    : Transaction.from(bytes);
+}
+
 async function readJsonResponse<T>(response: Response): Promise<T> {
   const contentType = response.headers.get("content-type") ?? "";
 
@@ -165,7 +174,7 @@ function SavingsQuotePreview({
       );
     }
 
-    const transaction = Transaction.from(decodeBase64Transaction(payload.transaction));
+    const transaction = deserializeSolanaTransaction(payload.transaction);
     const txHash = await sendTransaction(transaction, connection);
 
     await connection.confirmTransaction(txHash, "confirmed");
