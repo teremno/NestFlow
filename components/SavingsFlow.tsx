@@ -96,7 +96,16 @@ export function SavingsFlow({
   onExecutionStart,
   onComplete,
 }: SavingsFlowProps) {
-  const { goal, steps, executionStatus, error, txHashes, startSavingsFlow, reset } =
+  const {
+    goal,
+    steps,
+    executionStatus,
+    error,
+    txHashes,
+    startSavingsFlow,
+    retryProtocolDeposit,
+    reset,
+  } =
     useSavingsGoal();
   const { data: walletClient, refetch: refetchWalletClient } = useWalletClient();
   const { switchChainAsync } = useSwitchChain();
@@ -164,6 +173,11 @@ export function SavingsFlow({
     }
 
     await startSavingsFlow(retryParams);
+  }
+
+  async function handleRetryDeposit() {
+    await retryProtocolDeposit();
+    onComplete?.();
   }
 
   const isExecuting = executionStatus === "quoting" || executionStatus === "executing";
@@ -435,6 +449,16 @@ export function SavingsFlow({
               className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-md bg-primary-500 px-4 text-sm font-semibold text-white transition hover:bg-primary-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
             >
               Retry
+            </button>
+          ) : null}
+
+          {isFailedAfterBridge ? (
+            <button
+              type="button"
+              onClick={() => void handleRetryDeposit()}
+              className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-md bg-primary-500 px-4 text-sm font-semibold text-white transition hover:bg-primary-400"
+            >
+              Retry Kamino Deposit
             </button>
           ) : null}
 

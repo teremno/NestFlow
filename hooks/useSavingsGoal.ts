@@ -11,7 +11,7 @@ import {
   type RouteExtended,
   type SwitchChainHook,
 } from "@lifi/sdk";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { Client } from "viem";
 
 import { saveCompletedFlow } from "@/lib/completed-flows";
@@ -202,6 +202,7 @@ export function useSavingsGoal() {
   const [executionStatus, setExecutionStatus] = useState<SavingsExecutionStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [executedRoute, setExecutedRoute] = useState<RouteExtended | null>(null);
+  const latestParamsRef = useRef<StartSavingsFlowParams | null>(null);
 
   const txHashes = useMemo(() => normalizeTxHashes(executedRoute ?? undefined), [executedRoute]);
 
@@ -211,9 +212,11 @@ export function useSavingsGoal() {
     setExecutionStatus("idle");
     setError(null);
     setExecutedRoute(null);
+    latestParamsRef.current = null;
   }, []);
 
   const startSavingsFlow = useCallback(async (params: StartSavingsFlowParams) => {
+    latestParamsRef.current = params;
     setError(null);
     setExecutedRoute(null);
     setSteps([
@@ -317,6 +320,84 @@ export function useSavingsGoal() {
     }
   }, []);
 
+  const retryProtocolDeposit = useCallback(async () => {
+    const params = latestParamsRef.current;
+
+    if (!params) {
+      throw new Error("Previous savings flow is not available. Refresh and quote again.");
+    }
+
+    if (params.targetProtocol !== "kamino") {
+      throw new Error("Only Kamino deposit retry is available.");
+    }
+
+    if (!params.depositIntoProtocol) {
+      throw new Error("Kamino deposit provider is not available. Reconnect Solana wallet.");
+    }
+
+    if (!executedRoute || !goal?.quote) {
+      throw new Error("Completed bridge route is not available. Check your Solana wallet manually.");
+    }
+
+    setError(null);
+    setExecutionStatus("executing");
+    setSteps((currentSteps) =>
+      currentSteps.map((step) =>
+        step.type === "deposit"
+          ? {
+              ...step,
+              status: "active",
+              message: "Retrying Kamino deposit only.",
+            }
+          : {
+              ...step,
+              status: step.status === "failed" ? "done" : step.status,
+            },
+      ),
+    );
+
+    try {
+      const depositAmount = executedRoute.toAmount ?? goal.quote.estimate.toAmount;
+      const protocolTx = await params.depositIntoProtocol(depositAmount);
+
+      saveCompletedFlow({
+        fromChain: goal.fromChain,
+        fromToken: goal.fromToken,
+        fromAmount: goal.fromAmount,
+        targetProtocol: goal.targetProtocol,
+        quote: goal.quote,
+        route: executedRoute,
+        protocolTxs: [protocolTx],
+      });
+      setSteps((currentSteps) =>
+        currentSteps.map((step) =>
+          step.type === "deposit"
+            ? {
+                ...step,
+                status: "done",
+                txHash: protocolTx.hash,
+                txLink: protocolTx.link,
+                message: "USDC deposited into Kamino.",
+              }
+            : {
+                ...step,
+                status: step.status === "failed" ? "failed" : "done",
+              },
+        ),
+      );
+      setExecutionStatus("done");
+    } catch (depositError) {
+      setError(getFriendlyErrorMessage(depositError));
+      setSteps((currentSteps) =>
+        currentSteps.map((step) =>
+          step.type === "deposit" ? { ...step, status: "failed" } : step,
+        ),
+      );
+      setExecutionStatus("failed");
+      throw depositError;
+    }
+  }, [executedRoute, goal]);
+
   return {
     goal,
     steps,
@@ -324,6 +405,7 @@ export function useSavingsGoal() {
     error,
     txHashes,
     startSavingsFlow,
+    retryProtocolDeposit,
     reset,
   };
 }
