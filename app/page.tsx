@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ArrowLeftRight, CheckCircle, Layers, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Transaction, VersionedTransaction } from "@solana/web3.js";
+import { Transaction, VersionedTransaction, type Connection } from "@solana/web3.js";
 import { parseUnits } from "viem";
 import { useAccount } from "wagmi";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
@@ -55,6 +55,8 @@ const TOKEN_DECIMALS: Record<string, number> = {
   USDC: 6,
   USDT: 6,
 };
+const SOLANA_CONFIRMATION_TIMEOUT_MS = 120_000;
+const SOLANA_CONFIRMATION_POLL_MS = 2_000;
 
 type SourceChainKey = SavingsGoalFormData["sourceChain"];
 
@@ -85,6 +87,12 @@ function getSolscanTxUrl(signature: string): string {
   return `https://solscan.io/tx/${signature}`;
 }
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 function decodeBase64Transaction(value: string): Uint8Array {
   const binary = window.atob(value);
   const bytes = new Uint8Array(binary.length);
@@ -104,6 +112,39 @@ function deserializeSolanaTransaction(value: string): Transaction | VersionedTra
   } catch {
     return Transaction.from(bytes);
   }
+}
+
+async function waitForSolanaConfirmation(
+  connection: Connection,
+  signature: string,
+): Promise<void> {
+  const deadline = Date.now() + SOLANA_CONFIRMATION_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    const { value } = await connection.getSignatureStatuses([signature], {
+      searchTransactionHistory: true,
+    });
+    const status = value[0];
+
+    if (status?.err) {
+      throw new Error(
+        `Kamino deposit failed on Solana. Signature: ${signature}. Error: ${JSON.stringify(status.err)}`,
+      );
+    }
+
+    if (
+      status?.confirmationStatus === "confirmed" ||
+      status?.confirmationStatus === "finalized"
+    ) {
+      return;
+    }
+
+    await wait(SOLANA_CONFIRMATION_POLL_MS);
+  }
+
+  throw new Error(
+    `Kamino deposit transaction was submitted but not confirmed yet. Check ${getSolscanTxUrl(signature)} before retrying.`,
+  );
 }
 
 async function readJsonResponse<T>(response: Response): Promise<T> {
@@ -178,7 +219,7 @@ function SavingsQuotePreview({
     const transaction = deserializeSolanaTransaction(payload.transaction);
     const txHash = await sendTransaction(transaction, connection);
 
-    await connection.confirmTransaction(txHash, "confirmed");
+    await waitForSolanaConfirmation(connection, txHash);
 
     return {
       hash: txHash,
